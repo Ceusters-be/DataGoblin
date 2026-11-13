@@ -1,0 +1,15 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+*.log
+.DS_Store
+
+# Local configuration, credentials and generated reports
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+tmp/
+performance-results/

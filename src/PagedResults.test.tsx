@@ -1,0 +1,195 @@
+// @vitest-environment jsdom
+import React from 'react';
+import { beforeEach, afterEach, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { PagedResults } from './PagedResults';
+
+const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
+vi.mock('@tauri-apps/api/core', () => ({ invoke }));
+const allRows = Array.from({ length: 1251 }, (_, index) => [String(index + 1)]);
+const data = { columns: ['ID'], rows: allRows.slice(0, 500), totalRows: 1251, affected: null };
+beforeEach(() => {
+  localStorage.clear();
+  invoke.mockReset();
+  invoke.mockImplementation(async (_, { offset, pageSize }) => ({ rows: allRows.slice(offset, pageSize === 0 ? undefined : offset + pageSize), totalRows: allRows.length }));
+});
+afterEach(cleanup);
+function chooseSize(value: string) {
+  fireEvent.click(screen.getByLabelText('Page size'));
+  if (value === 'custom') { fireEvent.click(screen.getByRole('menuitem', { name: 'Custom…' })); return; }
+  const label = value === '0' ? 'All' : Number(value).toLocaleString();
+  const option = screen.getAllByRole('menuitemradio').find(option => option.textContent?.replace('Default', '') === label)!;
+  fireEvent.click(option);
+}
+
+it('requests only a scalar count, keeps the current page, and fetches rows only on Next', async () => {
+  const progress = vi.fn();
+  render(<PagedResults data={{ ...data, totalRows: 501, hasMore: true }} cacheId="cache" setIndex={0} truncated={false} onUpdate={progress} onExport={vi.fn()}/>);
+  expect(invoke).not.toHaveBeenCalled();
+  invoke.mockResolvedValueOnce(16954);
+  fireEvent.click(screen.getByRole('button', { name: 'Count all rows' }));
+  await screen.findByLabelText('1–500 of ' + (16954).toLocaleString());
+  expect(invoke).toHaveBeenCalledWith('result_count', { cacheId: 'cache', setIndex: 0 });
+  expect(invoke).toHaveBeenCalledTimes(1);
+  expect(progress).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: 'Select row 500' })).toBeTruthy();
+  expect((screen.getByRole('button', { name: 'Count all rows' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByTitle('Last page') as HTMLButtonElement).disabled).toBe(false);
+  invoke.mockResolvedValueOnce({ rows: allRows.slice(500, 1000), totalRows: 1001, hasMore: true });
+  fireEvent.click(screen.getByTitle('Next page'));
+  await screen.findByLabelText('501–1000 of ' + (16954).toLocaleString());
+  expect(invoke).toHaveBeenLastCalledWith('result_page', { cacheId: 'cache', setIndex: 0, offset: 500, pageSize: 500 });
+});
+
+it('loads All beyond 10,000 rows through the range menu', async () => {
+  const full = Array.from({ length: 16954 }, (_, index) => [String(index)]);
+  invoke.mockResolvedValueOnce({ rows: full, totalRows: full.length, hasMore: false });
+  const exportRows = vi.fn();
+  render(<PagedResults data={{ ...data, totalRows: 501, hasMore: true }} cacheId="cache" setIndex={0} truncated={false} onExport={exportRows}/>);
+  chooseSize('0');
+  await screen.findByLabelText('1–16954 of ' + (16954).toLocaleString());
+  expect(invoke).toHaveBeenCalledWith('result_page', { cacheId: 'cache', setIndex: 0, offset: 0, pageSize: 0 });
+  expect(screen.getAllByRole('row').length).toBeLessThan(100);
+  fireEvent.scroll(screen.getByRole('table').parentElement!, { target: { scrollTop: (16954 - 15) * 36 } });
+  expect(screen.getByRole('button', { name: 'Select row 16954' })).toBeTruthy();
+  expect(screen.getAllByRole('row').length).toBeLessThan(100);
+  fireEvent.click(screen.getByRole('button', { name: /Export CSV/ }));
+  expect(exportRows).toHaveBeenCalledWith(full);
+});
+
+it('dismisses the upward page-size menu with Escape or an outside click', () => {
+  render(<PagedResults data={data} setIndex={0} truncated={false} onExport={vi.fn()}/>);
+  fireEvent.click(screen.getByLabelText('Page size'));
+  expect(screen.getByRole('menu', { name: 'Page size options' })).toBeTruthy();
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(screen.queryByRole('menu')).toBeNull();
+  expect(document.activeElement).toBe(screen.getByLabelText('Page size'));
+  fireEvent.click(screen.getByLabelText('Page size'));
+  fireEvent.pointerDown(document.body);
+  expect(screen.queryByRole('menu')).toBeNull();
+});
+
+it('retains the unknown count and current rows when counting fails', async () => {
+  render(<PagedResults data={{ ...data, totalRows: 501, hasMore: true }} cacheId="cache" setIndex={0} truncated={false} onExport={vi.fn()}/>);
+  invoke.mockRejectedValueOnce('Fetching timed out.');
+  fireEvent.click(screen.getByRole('button', { name: 'Count all rows' }));
+  await screen.findByRole('alert');
+  expect(screen.getByLabelText('1–500 of 501+')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Select row 500' })).toBeTruthy();
+});
+
+
+it('fetches only on Next when the total is unknown and learns the final total', async () => {
+  const progress = vi.fn();
+  render(<PagedResults data={{ ...data, totalRows: 501, hasMore: true }} cacheId="cache" setIndex={0} truncated={false} onUpdate={progress} onExport={vi.fn()}/>);
+  expect(screen.getByLabelText('1–500 of ' + (501).toLocaleString() + '+')).toBeTruthy();
+  expect(invoke).not.toHaveBeenCalled();
+  expect((screen.getByTitle('Last page (total not known yet)') as HTMLButtonElement).disabled).toBe(true);
+  const result = { cacheId: 'cache', sets: [{ ...data, totalRows: 751, hasMore: false }], complete: true, elapsedMs: 0, truncated: false };
+  invoke.mockResolvedValueOnce({ rows: allRows.slice(500, 751), totalRows: 751, hasMore: false, result });
+  fireEvent.click(screen.getByTitle('Next page'));
+  await screen.findByLabelText('501–751 of ' + (751).toLocaleString());
+  expect(invoke).toHaveBeenCalledTimes(1);
+  expect(progress).toHaveBeenCalledWith(result);
+  expect((screen.getByTitle('Next page') as HTMLButtonElement).disabled).toBe(true);
+});
+
+it('uses the initial requested size without refetching and stops navigation when closed', () => {
+  localStorage.setItem('datagoblin.pageSize', '10');
+  const props = { data: { ...data, rows: allRows.slice(0, 10), totalRows: 11, hasMore: true }, cacheId: 'cache', setIndex: 0, truncated: false, initialSize: 10, onExport: vi.fn() };
+  const view = render(<PagedResults {...props}/>);
+  expect(screen.getByLabelText('1–10 of 11+')).toBeTruthy();
+  expect(invoke).not.toHaveBeenCalled();
+  view.rerender(<PagedResults {...props} closed/>);
+  expect((screen.getByTitle('Next page') as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByLabelText('Page size') as HTMLButtonElement).disabled).toBe(true);
+});
+
+it('navigates past 1,000 rows using the cache, including last, previous and first', async () => {
+  render(<PagedResults data={data} cacheId="cache" setIndex={1} truncated={false} onExport={vi.fn()}/>);
+  expect(screen.getByLabelText('1–500 of ' + (1251).toLocaleString() + '')).toBeTruthy();
+  expect((screen.getByTitle('First page') as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByTitle('Next page'));
+  await screen.findByLabelText('501–1000 of ' + (1251).toLocaleString() + '');
+  fireEvent.click(screen.getByTitle('Last page'));
+  await screen.findByLabelText('1001–1251 of ' + (1251).toLocaleString() + '');
+  expect(screen.getByRole('button', { name: 'Select row 1001' })).toBeTruthy();
+  expect(invoke).toHaveBeenLastCalledWith('result_page', { cacheId: 'cache', setIndex: 1, offset: 1000, pageSize: 500 });
+  expect((screen.getByTitle('Next page') as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByTitle('Previous page'));
+  await screen.findByLabelText('501–1000 of ' + (1251).toLocaleString() + '');
+  fireEvent.click(screen.getByTitle('First page'));
+  await screen.findByLabelText('1–500 of ' + (1251).toLocaleString() + '');
+  expect(invoke.mock.calls.every(([command]) => command === 'result_page')).toBe(true);
+});
+
+it('supports preset, custom and All sizes and persists the default', async () => {
+  const exportRows = vi.fn();
+  render(<PagedResults data={data} cacheId="cache" setIndex={0} truncated={false} onExport={exportRows}/>);
+  chooseSize('10');
+  await screen.findByLabelText('1–10 of ' + (1251).toLocaleString() + '');
+  fireEvent.click(screen.getByLabelText('Page size'));
+  fireEvent.click(screen.getByText('Set as default'));
+  expect(localStorage.getItem('datagoblin.pageSize')).toBe('10');
+  chooseSize('custom');
+  fireEvent.change(screen.getByLabelText('Custom page size'), { target: { value: '37' } });
+  fireEvent.click(screen.getByText('Apply'));
+  await screen.findByLabelText('1–37 of ' + (1251).toLocaleString() + '');
+  fireEvent.click(screen.getByRole('button', { name: /Export CSV/ }));
+  expect(exportRows).toHaveBeenCalledWith(allRows.slice(0, 37));
+  chooseSize('0');
+  await screen.findByLabelText('1–1251 of ' + (1251).toLocaleString() + '');
+  expect((screen.getByTitle('Next page') as HTMLButtonElement).disabled).toBe(true);
+});
+
+it('preserves the current page after a cache error and applies the saved default', async () => {
+  localStorage.setItem('datagoblin.pageSize', '10');
+  render(<PagedResults data={data} cacheId="cache" setIndex={0} truncated={true} onExport={vi.fn()}/>);
+  await screen.findByLabelText('1–10 of ' + (1251).toLocaleString() + '+');
+  invoke.mockRejectedValueOnce('Results have expired. Run the query again to load them.');
+  fireEvent.click(screen.getByTitle('Next page'));
+  await screen.findByRole('alert');
+  expect(screen.getByLabelText('1–10 of ' + (1251).toLocaleString() + '+')).toBeTruthy();
+  await waitFor(() => expect((screen.getByTitle('Next page') as HTMLButtonElement).disabled).toBe(false));
+});
+
+it('rejects invalid custom sizes without losing displayed rows', async () => {
+  render(<PagedResults data={{ ...data, totalRows: 10001 }} cacheId="cache" setIndex={0} truncated={false} onExport={vi.fn()}/>);
+  chooseSize('custom');
+  fireEvent.change(screen.getByLabelText('Custom page size'), { target: { value: '0' } });
+  fireEvent.click(screen.getByText('Apply'));
+  expect(screen.getByRole('alert').textContent).toContain('between 1 and 10,000');
+  expect(invoke).not.toHaveBeenCalled();
+  expect(screen.getByLabelText('1–500 of ' + (10001).toLocaleString())).toBeTruthy();
+});
+
+it('renders empty results without enabling navigation', () => {
+  render(<PagedResults data={{ columns: ['ID'], rows: [], totalRows: 0, affected: null }} cacheId="cache" setIndex={0} truncated={false} onExport={vi.fn()}/>);
+  expect(screen.getByLabelText('0 of 0')).toBeTruthy();
+  expect((screen.getByTitle('Next page') as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByText('Query returned no rows.')).toBeTruthy();
+});
+
+it('shows refresh progress inside the table without a session-closed banner', () => {
+  const props = {data,cacheId:'refresh-loading',setIndex:0,truncated:false,onExport:vi.fn(),closed:true};
+  const view = render(<PagedResults {...props} browserBusy/>);
+  const loading = screen.getByRole('status',{name:'Loading results'});
+  expect(loading.closest('.grid-viewport')?.querySelector('table')).toBeTruthy();
+  expect(screen.getByRole('button',{name:'Select row 1'})).toBeTruthy();
+  expect(screen.queryByText(/Result session closed/)).toBeNull();
+  expect((screen.getByTitle('Next page') as HTMLButtonElement).disabled).toBe(true);
+  view.rerender(<PagedResults {...props} browserBusy={false}/>);
+  expect(screen.queryByRole('status',{name:'Loading results'})).toBeNull();
+  expect(screen.getByText(/Result session closed/)).toBeTruthy();
+});
+it('keeps existing rows under the loading indicator while fetching a page', async () => {
+  let resolve!: (value: unknown) => void;
+  invoke.mockImplementationOnce(() => new Promise(done => {resolve=done;}));
+  render(<PagedResults data={data} cacheId="page-loading" setIndex={0} truncated={false} onExport={vi.fn()}/>);
+  fireEvent.click(screen.getByTitle('Next page'));
+  expect(screen.getByRole('status',{name:'Loading results'})).toBeTruthy();
+  expect(screen.getByRole('button',{name:'Select row 1'})).toBeTruthy();
+  resolve({rows:allRows.slice(500,1000),totalRows:1251});
+  await screen.findByRole('button',{name:'Select row 501'});
+  expect(screen.queryByRole('status',{name:'Loading results'})).toBeNull();
+});
