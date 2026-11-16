@@ -6,6 +6,7 @@ import { type MenuPosition } from './ContextMenu';
 import { SqlTarget } from './editorNavigation';
 import { type OutputEvent } from './QueryOutput';
 import WindowControls from './WindowControls.vue';
+import AppUpdater from './AppUpdater.vue';
 import { hasCustomTitlebar } from './WindowControls';
 import { shallowRef, computed, watchSyncEffect } from 'vue';
 import { stateSetter, watchMounted } from './vueLifecycle';
@@ -1480,6 +1481,15 @@ async function cancelCurrent() {
     setError(errorText(error));
   }
 }
+async function prepareUpdate() {
+  if (activeRequests.value.size || Object.values(fetching.value).some(Boolean) || Object.values(editPending.value).some(Boolean))
+    throw new Error('Finish queries and apply or revert grid edits before updating.');
+  // Prevent scheduled table refreshes from starting while the installer exits.
+  setRefreshIntervals({});
+  await queryStorage.flush();
+  if (activeRequests.value.size || Object.values(fetching.value).some(Boolean) || Object.values(editPending.value).some(Boolean))
+    throw new Error('Finish queries and apply or revert grid edits before updating.');
+}
 async function saveTab() {
   try {
     await queryStorage.flush();
@@ -1718,6 +1728,7 @@ const document = globalThis.document;
         @toggle="togglePanel"
       ></WorkspaceControls>
       <div class="top-actions">
+        <AppUpdater :blocked="Object.values(running).some(Boolean) || Object.values(fetching).some(Boolean) || Object.values(editPending).some(Boolean)" :before-install="prepareUpdate" />
         <button
           class="icon-button"
           title="Settings"
