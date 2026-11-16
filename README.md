@@ -1,4 +1,4 @@
-# Slate
+# DataGoblin
 
 A lightweight desktop SQL workbench for **PostgreSQL** and **Microsoft SQL Server**.
 Built with Tauri 2, Rust, React, TypeScript, and CodeMirror 6.

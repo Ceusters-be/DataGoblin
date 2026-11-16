@@ -437,7 +437,7 @@ function Workspace() {
   }
   return <div className="app">
     <header className="topbar">
-      <div className="brand"><img src="/slate.png" alt="" /><strong>Slate</strong><span className="alpha">EARLY ACCESS</span></div>
+      <div className="brand"><img src="/goblin.svg" alt="" /><strong>DataGoblin</strong><span className="alpha">EARLY ACCESS</span></div>
       <WorkspaceControls panels={panels} onToggle={togglePanel}/><div className="top-actions"><button className="icon-button" title="Settings" onClick={() => setSettingsOpen(true)}><Settings2 size={17}/></button><button className="icon-button" title="Keyboard shortcuts" onClick={() => setHelp(true)}><CircleHelp size={17}/></button></div>
     </header>
     <IslandWorkspace panels={panels}
@@ -545,7 +545,7 @@ function ConnectionDialog({ initial, onClose, onSave, onTest }: { initial?: Conn
       setPassword(parsed.password);
       setConnectionString('');
       setOk(true);
-      setMessage('Connection details filled in. Review the fields below.' + (parsed.ignoredOptions ? ' Application, pooling, timeout and other client-only options are not imported; Slate uses its own settings.' : ''));
+      setMessage('Connection details filled in. Review the fields below.' + (parsed.ignoredOptions ? ' Application, pooling, timeout and other client-only options are not imported; DataGoblin uses its own settings.' : ''));
     } catch (error) { setMessage(errorText(error)); }
   }
   const [c, setC] = useState<Connection>(initial ?? { id: uid(), name: '', engine: 'postgres', host: 'localhost', port: 5432, database: 'postgres', username: 'postgres', tls: true, trustCertificate: false });

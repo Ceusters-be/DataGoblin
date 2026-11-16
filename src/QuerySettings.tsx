@@ -44,7 +44,7 @@ export function QuerySettings({ library, onChange, onClose }: { library: QueryLi
     <h3>Query storage</h3>
     <p>Query1, Query2… drafts save automatically in Unsaved. Named queries are organized by server and database.</p>
     <label>Current folder<input aria-label="Current query folder" readOnly value={library?.folder ?? 'Library unavailable'}/></label>
-    <p className="muted">Default: {library?.defaultFolder ?? 'Slate app data / queries'}</p>
+    <p className="muted">Default: {library?.defaultFolder ?? 'DataGoblin app data / queries'}</p>
     <p className="muted">Changing folders copies your saved query library to the new location. Original files are kept. Imported SQL files are copied into the library; exporting a file creates a separate copy.</p>
     {error && <div className="form-message error" role="alert">{error}</div>}
     <div className="modal-footer"><button className="secondary-button" disabled={busy || !library} onClick={() => void change(true)}>Use app data folder</button><button className="primary-button" disabled={busy || !library} onClick={() => void change(false)}><FolderOpen size={15}/>{busy ? 'Updating…' : 'Choose folder'}</button></div>

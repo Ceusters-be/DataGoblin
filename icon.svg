@@ -1,1 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#15231b"/><path d="M116 168L40 120l40 160 76 32M396 168l76-48-40 160-76 32" fill="#8ccf62"/><path d="M128 160q128-80 256 0v160q-128 120-256 0Z" fill="#b3ed80"/><path d="M165 215l70 28-52 25Zm182 0-70 28 52 25Z" fill="#15231b"/><path d="M200 321q56 30 112 0" fill="none" stroke="#15231b" stroke-width="20" stroke-linecap="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>DataGoblin — Goblin Stack</title>
+  <path fill="#0647F7" d="M64 54Q64 49 71 52Q125 74 158 108Q256 78 354 108Q387 74 441 52Q448 49 448 54C446 139 425 184 388 205C327 240 185 240 124 205C87 184 66 139 64 54Z"/>
+  <g fill="#272C35">
+    <path d="M96 218C151 267 361 267 416 218V302C416 341 96 341 96 302Z"/>
+    <path d="M96 326C151 369 361 369 416 326V410C416 453 96 453 96 410Z"/>
+  </g>
+</svg>

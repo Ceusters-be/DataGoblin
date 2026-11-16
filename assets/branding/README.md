@@ -1,27 +1,18 @@
-# DataGoblin logo C
+# DataGoblin — Goblin Stack (A)
 
-Selected direction: database cylinder with goblin ears.
+Selected identity: a cobalt-blue database cap with integrated goblin ears, above two charcoal database layers. Transparent background, flat shapes, and open gaps keep the mark readable at small sizes.
 
-- `../../public/goblin.svg`: transparent vector mark used in the app header and favicon.
-- `app-icon.svg`: charcoal rounded-square app icon with the same teal mark.
+- `../../public/goblin.svg`: app header and browser favicon.
+- `app-icon.svg`: canonical desktop icon source.
+- `../../icon.svg`: matching root icon.
 - `../../src-tauri/icons/`: generated platform icons.
 
-Regenerate from the project root with:
+Colors: cobalt `#0647F7`, charcoal `#272C35`.
+
+Regenerate platform icons from the project root:
 
 ```sh
-npx tauri icon assets/branding/app-icon.svg --output src-tauri/icons
+npm exec -- tauri icon assets/branding/app-icon.svg --output src-tauri/icons
 ```
 
-The SVG is a clean vector recreation of the selected concept, suited to small UI sizes. Colors: teal `#00A883`, charcoal `#202426`.
-
-
-## Slate icon
-
-Active source: `slate-icon.png`, the selected refined stacked-slate concept A,
-generated with the built-in image generation tool. Three isometric slabs (blue,
-slate grey, charcoal), tighter vertical spacing, reduced margins, transparent
-background. Original generated file retained separately.
-
-Regenerate platform icons: `npm exec -- tauri icon assets/branding/slate-icon.png --output src-tauri/icons`.
-The UI and favicon use `public/slate.png`. The application identifier, credential
-service and saved preference keys retain their previous values for compatibility.
+The older `slate-icon.png` and `../../public/slate.png` are retained as historical artwork; the app uses Goblin Stack.
