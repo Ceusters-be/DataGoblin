@@ -24,7 +24,7 @@ pub fn query(count_sql: &str, engine: &Engine) -> Option<String> {
                 WHERE i.object_id=c.object_id AND i.is_primary_key=1 AND ic.column_id=c.column_id AND ic.key_ordinal>0) THEN 1 ELSE 0 END,
             CASE WHEN EXISTS (SELECT 1 FROM sys.foreign_key_columns fk
                 WHERE fk.parent_object_id=c.object_id AND fk.parent_column_id=c.column_id) THEN 1 ELSE 0 END, TYPE_NAME(c.user_type_id)
-            FROM sys.columns c WHERE c.object_id=OBJECT_ID(N'{table}') ORDER BY c.column_id"#
+            FROM sys.columns c WHERE c.object_id=OBJECT_ID(N'{table}') AND c.is_hidden=0 ORDER BY c.column_id"#
         ),
         Engine::Postgres => format!(
             r#"SELECT a.attname,
@@ -79,6 +79,7 @@ mod tests {
         .unwrap();
         assert!(sql.contains("OBJECT_ID(N'[dbo].[Job''s]')"));
         assert!(sql.contains("i.is_primary_key=1"));
+        assert!(sql.contains("c.is_hidden=0"));
         assert!(sql.contains("fk.parent_column_id=c.column_id"));
         let sql = query(
             "SELECT COUNT(*) AS total_rows FROM \"public\".\"Jobs\"",

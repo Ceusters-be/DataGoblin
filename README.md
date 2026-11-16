@@ -1,7 +1,7 @@
 # DataGoblin
 
 A lightweight desktop SQL workbench for **PostgreSQL** and **Microsoft SQL Server**.
-Built with Tauri 2, Rust, React, TypeScript, and CodeMirror 6.
+Built with Tauri 2, Rust, Nuxt 4, Vue 3, TypeScript, and CodeMirror 6.
 
 ## Run locally
 
@@ -16,7 +16,14 @@ npm ci
 npm run desktop
 ```
 
-`npm run dev` runs the frontend shell only; database and filesystem features require the desktop app.
+`npm run dev` runs Nuxt at http://localhost:1420; database and filesystem features require the desktop app.
+
+The frontend is native Vue 3, mounted by `app/app.vue`. Screens in `src/` are `.vue`
+single-file components using `<script setup lang="ts">` and `<template>`. Shared logic
+and composables live in `.ts` modules; the SQL editor is `src/Editor.vue`. JSX remains
+only in test fixtures. There is no React runtime. Nuxt runs with `ssr: false` because the workbench uses Tauri IPC and
+local browser APIs. `npm run build` checks TypeScript and generates `.output/public`,
+which Tauri embeds in the desktop executable; no Node server is needed at runtime.
 
 ## First connection
 
@@ -24,7 +31,7 @@ npm run desktop
 2. Choose PostgreSQL or SQL Server and enter a host, port, initial database, and username/password.
 3. Leave TLS enabled for encrypted connections. Only enable “Trust self-signed certificate” for a server you trust. Local PostgreSQL installations without TLS need TLS unchecked.
 4. Test the connection, then add it.
-5. Choose a database. Expand a schema and a table to load column metadata.
+5. Click the count beside a server to select databases, then the count beside a database to select schemas. Expand a table to load column metadata. SQL Server defaults to `master` and `dbo`; PostgreSQL uses the configured database and `public`. Selections are remembered locally per connection/database. Selected schemas group Tables, Views and Routines with counts. Enter or clicking outside the picker applies changes; Escape cancels.
 6. Use the small query icon beside a table to open a bounded SELECT query, or write your own SQL.
 
 ## Implemented
@@ -33,14 +40,46 @@ npm run desktop
 - PostgreSQL and SQL Server password authentication; TLS with certificate verification enabled by default.
 - Per-tab database selection, syntax highlighting, keyword/table completion, and column completion for expanded tables.
 - Ctrl/Cmd+Alt+L formats the selection or entire query using the active SQL dialect.
-- `sel` then Tab expands `SELECT * FROM …;`.
+- `sel` then Tab expands `select * from …;`.
 - Ctrl/Cmd+Enter runs the selected text or current semicolon-delimited statement.
 - **Run all** executes the full tab. Multiple returned result sets can be selected.
 - Query cancellation by closing the operation's connection, 120-second timeout, paged query results backed by a temporary disk cache.
 - Automatic SQL-file saving, a saved-query library grouped by server/database, configurable storage, and local recovery drafts.
 - Native dialogs to import/export SQL files.
 - Results with text selection/copy, NULL indicators, and CSV export of displayed rows.
+- Edit source-table values directly in supported JOIN results, with shared drafts for repeated source rows and one transaction across both tables.
 - Ctrl/Cmd+S saves, Ctrl/Cmd+/ comments, Ctrl/Cmd+F finds, Ctrl+Space completes.
+
+Single-table `SELECT * FROM table WHERE ...` results support editing when the table has a supported primary key. The original scalar predicate is retained for refresh, sorting, counts and filter-value choices. Subqueries, batches and additional clauses are not inferred as editable by this parser.
+
+## Editing JOIN results
+
+Run a `SELECT *` over two or more different base tables using `JOIN` or `INNER JOIN`:
+
+```sql
+SELECT *
+FROM Agreement a
+INNER JOIN AgreementPartyRole apr
+    ON a.AgreementId = apr.AgreementId;
+```
+
+All source tables must have a primary key with supported scalar types. Result columns are
+labeled by source alias (`a.Name`, `apr.Role`), including columns with duplicate names.
+Double-click a supported non-key cell to edit it. Every loaded occurrence of the same
+source row shows the shared draft. Preview pending changes to see the target tables
+and parameterized updates, then apply. All updates commit together; a conflicting
+change to an edited value or a failed constraint rolls back the entire submission.
+The exact original query is refreshed after saving, regardless of subsequent editor changes.
+
+This first version supports updates only, including composite primary keys, `WHERE`
+filters and `ORDER BY`. Explicit projections, expressions, aggregates, CTEs, subqueries,
+outer joins, self-joins and views remain read-only.
+Primary keys, generated columns and unsupported data types cannot be edited. Hover
+the **Read-only result** label for an explanation when a result cannot be mapped safely.
+
+`scripts/validate-join-edits.ps1` verifies source routing, repeated-row deduplication,
+transaction rollback and concurrent-change detection against disposable PostgreSQL
+and SQL Server containers. It does not read saved application connections.
 
 ## Credential storage
 
@@ -98,7 +137,7 @@ This is an initial working implementation, not a DataGrip replacement.
   the server immediately stops a command or rolls back previously committed writes. Later statements
   in a batch may not complete. Use explicit SQL limits for large reads.
 - The result budget limits retained rows/values, not the driver's peak allocation for a single large value.
-- Explorer metadata is capped at 1,000 rows per request. Columns load when you expand a table.
+- Database, schema and object lists load in 500-row metadata batches, restricted to the selected databases and schemas. Column/key metadata loads on demand and retains the separate 1,000-row per-request limit.
 - SQL Server GO separators and advanced procedural statement splitting are not implemented; select the
   complete batch or use Run all. SQL Server affected-row counts are not yet displayed.
 - No Windows integrated/Entra authentication, SSH tunnels, visual table editing, formatter, key/index
@@ -174,8 +213,8 @@ an explicit message. Cancel, rerunning a query, changing its database, closing i
 or exiting the app closes the stream and releases its temporary file. An idle stream
 expires after 10 minutes; each fetch has a 120-second timeout. A timeout or server error
 leaves previously cached full pages readable, but fetching further needs a new run.
-Results are not saved across restarts. Explorer metadata keeps its separate
-1,000-row / 8-MiB limit. Automated tests exercise backpressure, page boundaries,
+Results are not saved across restarts. Explorer catalog lists use 500-row batches;
+individual metadata requests retain the separate 1,000-row / 8-MiB limit. Automated tests exercise backpressure, page boundaries,
 result sets, cancellation and UI behavior; live database timing is not benchmarked.
 
 - `src/App.tsx`: desktop workspace and connection management.
@@ -319,3 +358,12 @@ sidebar widths or the editor/results split; use arrow keys (Shift for larger ste
 Home/End, or double-click to reset a divider. Sizes are saved locally and constrained
 on window resize so the editor and results remain usable. With no queries open, the
 top panels use the full height. The old browser-native corner resize grip is removed.
+
+### Vim mode
+
+Enable **Settings > Editor > Vim mode** for Vim motions and modal SQL editing.
+The preference is remembered and applies to open editors without losing their text
+or undo history. The editor displays the current mode. Use `i` to insert, `Esc` for
+Normal mode, `w`/`b` for words, `ciw` to change a word, and `u` to undo. SQL completion
+and the `sel` snippet work in Insert mode. Run/Save shortcuts remain available;
+`:w` saves through the query library. Ctrl+A uses Vim's numeric increment in Vim mode.

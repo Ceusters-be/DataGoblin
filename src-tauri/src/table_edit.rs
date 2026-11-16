@@ -6,12 +6,12 @@ use tokio_util::compat::TokioAsyncWriteCompatExt;
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Change { pub row_index: usize, pub column: String, pub value: Option<String> }
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct Statement { pub sql: String, pub parameters: Vec<String> }
-#[derive(Serialize)]
+#[derive(Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
-pub struct Capabilities { pub columns: Vec<String>, pub json_columns: Vec<String>, pub uuid_columns: Vec<String>, pub date_columns: std::collections::BTreeMap<String, String>, pub insert_columns: Vec<InsertColumn> }
-#[derive(Serialize)]
+pub struct Capabilities { pub columns: Vec<String>, pub json_columns: Vec<String>, pub uuid_columns: Vec<String>, pub date_columns: std::collections::BTreeMap<String, String>, pub insert_columns: Vec<InsertColumn>, pub row_identity_columns: std::collections::BTreeMap<String, Vec<String>> }
+#[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InsertColumn { pub name: String, pub generated: bool, pub nullable: bool, pub default_expression: Option<String>, pub editable: bool }
 #[derive(Clone, Deserialize)]
@@ -59,7 +59,7 @@ pub async fn metadata(c: &Connection, password: &str, base: &str) -> Result<(Vec
     let json_columns = keys.iter().filter(|k| matches!(k.data_type.as_str(), "json"|"jsonb")).map(|k| k.name.clone()).collect();
     let uuid_columns = keys.iter().filter(|k| matches!(k.data_type.as_str(), "uuid"|"uniqueidentifier")).map(|k| k.name.clone()).collect();
     let date_columns = keys.iter().filter(|k| temporal(&k.data_type, &c.engine)).map(|k| (k.name.clone(), k.data_type.clone())).collect();
-    Ok((keys, Capabilities { columns, json_columns, uuid_columns, date_columns, insert_columns }))
+    Ok((keys, Capabilities { columns, json_columns, uuid_columns, date_columns, insert_columns, row_identity_columns: Default::default() }))
 }
 fn bind(value: &str, key: &ColumnKey, engine: &Engine, params: &mut Vec<String>) -> String {
     params.push(value.into());

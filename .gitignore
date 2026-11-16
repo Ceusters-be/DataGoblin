@@ -13,3 +13,6 @@ src-tauri/gen/
 *.key
 tmp/
 performance-results/
+
+.nuxt/
+.output/

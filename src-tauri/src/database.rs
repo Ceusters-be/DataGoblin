@@ -31,6 +31,8 @@ pub enum Engine {
 #[derive(Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ResultSet {
+    pub join_editable: bool,
+    pub edit_reason: Option<String>,
     pub columns: Vec<String>,
     pub rows: Vec<Vec<Option<String>>>,
     pub affected: Option<u64>,

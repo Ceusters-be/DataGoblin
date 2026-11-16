@@ -18,6 +18,8 @@ pub struct Sort {
 #[derive(Clone, Serialize)]
 pub struct Browser {
     pub table: String,
+    #[serde(skip)]
+    pub source_sql: Option<String>,
     pub filters: Vec<Filter>,
     pub sort: Option<Sort>,
     pub sql: String,
@@ -28,10 +30,12 @@ pub struct Plan {
     pub count: String,
 }
 pub fn initial(sql: &str, engine: &Engine) -> Option<Browser> {
-    let count = crate::count_query::table_count(sql, engine)?;
+    let query = crate::count_query::table_query(sql, engine)?;
+    let count = query.base_count;
     crate::column_keys::query(&count, engine)?;
     Some(Browser {
         table: count.split_once(" FROM ")?.1.into(),
+        source_sql: query.source,
         filters: vec![],
         sort: None,
         sql: sql.into(),
@@ -207,6 +211,8 @@ pub fn build(
     } else {
         "*".into()
     };
+    let source = base.source_sql.as_ref().map(|s| format!("({s})")).unwrap_or_else(|| base.table.clone());
+    let count_source = if base.source_sql.is_some() { format!("{source} AS _dg") } else { source.clone() };
     let count = format!(
         "SELECT {} AS total_rows FROM {}{condition}",
         if matches!(e, Engine::Postgres) {
@@ -214,14 +220,15 @@ pub fn build(
         } else {
             "COUNT_BIG(*)"
         },
-        base.table
+        count_source
     );
     Ok(Plan {
         browser: Browser {
             table: base.table.clone(),
+            source_sql: base.source_sql.clone(),
             sql: format!(
                 "SELECT {projection} FROM {} AS _dg{condition}{order}",
-                base.table
+                source
             ),
             filters,
             sort,
@@ -259,12 +266,31 @@ pub fn choices(
         });
         condition.push_str(&format!("LOWER({col}) LIKE LOWER({p}) ESCAPE '~'"));
     }
-    let sql=match e {Engine::Postgres=>format!("SELECT {col} AS value, CAST(COUNT(*) AS text) AS count FROM {}{condition} GROUP BY {col} ORDER BY COUNT(*) DESC, {col} LIMIT 101",base.table),Engine::Sqlserver=>format!("SELECT TOP (101) {col} AS value, COUNT_BIG(*) AS count FROM {}{condition} GROUP BY {col} ORDER BY COUNT_BIG(*) DESC, {col}",base.table)};
+    let source = base.source_sql.as_ref().map(|s| format!("({s}) AS _dg")).unwrap_or_else(|| base.table.clone());
+    let sql=match e {Engine::Postgres=>format!("SELECT {col} AS value, CAST(COUNT(*) AS text) AS count FROM {}{condition} GROUP BY {col} ORDER BY COUNT(*) DESC, {col} LIMIT 101",source),Engine::Sqlserver=>format!("SELECT TOP (101) {col} AS value, COUNT_BIG(*) AS count FROM {}{condition} GROUP BY {col} ORDER BY COUNT_BIG(*) DESC, {col}",source)};
     Ok((sql, params))
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn preserves_original_where_on_refresh_sort_count_and_choices() {
+        for e in [Engine::Sqlserver, Engine::Postgres] {
+            let base = initial("select * from Invoice where InvoiceNumber = 'V.DOCKS.6 26000485';", &e).unwrap();
+            assert!(!base.table.contains("WHERE"));
+            let keys = vec![ColumnKey { name: "InvoiceNumber".into(), primary_key: false, foreign_key: false, data_type: if matches!(e, Engine::Sqlserver) { "nvarchar".into() } else { "text".into() } }];
+            let refreshed = build(&base, vec![], None, &keys, &e).unwrap();
+            let filtered = build(&refreshed.browser, vec![Filter { column: "InvoiceNumber".into(), operator: "equals".into(), value: "other".into(), values: vec![] }], Some(Sort { column: "InvoiceNumber".into(), descending: true }), &keys, &e).unwrap();
+            let (choices_sql, _) = choices(&filtered.browser, "InvoiceNumber", "", &keys, &e).unwrap();
+            let cleared = build(&filtered.browser, vec![], None, &keys, &e).unwrap();
+            for sql in [&refreshed.browser.sql, &filtered.browser.sql, &filtered.count, &choices_sql, &cleared.browser.sql] {
+                assert!(sql.contains("WHERE InvoiceNumber = 'V.DOCKS.6 26000485'"), "{sql}");
+                assert!(sql.contains(") AS _dg"), "{sql}");
+                assert!(!sql.contains(";"), "{sql}");
+            }
+            assert_eq!(filtered.browser.parameters, vec!["other"]);
+        }
+    }
     #[test]
     fn null_choices_search_and_typed_sort() {
         for e in [Engine::Postgres, Engine::Sqlserver] {

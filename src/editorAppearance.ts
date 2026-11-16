@@ -13,11 +13,17 @@ export const codeHighlighting = syntaxHighlighting(HighlightStyle.define([
   { tag: [tags.operator, tags.punctuation], color: 'var(--fg-secondary)' },
 ]));
 export const codeSurface = EditorView.theme({
-  '&': { backgroundColor: 'var(--bg)', color: 'var(--fg)' },
+  // CodeMirror panels use a high z-index internally. Keep those layers local
+  // so Vim status/search bars cannot paint over application dialogs.
+  '&': { backgroundColor: 'var(--bg)', color: 'var(--fg)', isolation: 'isolate' },
   '.cm-gutters': { backgroundColor: 'var(--bg)', color: 'var(--muted)', border: 'none' },
   // The selection layer sits behind the content: keep the active line translucent.
   '.cm-activeLine': { backgroundColor: 'var(--editor-line)' },
   '.cm-activeLineGutter': { backgroundColor: 'var(--hover)', color: 'var(--fg)' },
+  '.cm-current-statement-outline': {
+    border: '1px solid color-mix(in srgb, var(--accent) 55%, transparent)',
+    boxSizing: 'border-box', pointerEvents: 'none',
+  },
   '.cm-cursor': { borderLeftColor: 'var(--fg)', borderLeftWidth: '2px' },
   '.cm-selectionBackground': { backgroundColor: 'var(--editor-selection-inactive)' },
   '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': { backgroundColor: 'var(--editor-selection)' },

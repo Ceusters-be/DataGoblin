@@ -1,7 +1,7 @@
 export type Engine = 'postgres' | 'sqlserver';
 export interface Connection { id: string; name: string; engine: Engine; host: string; port: number; database: string; username: string; tls: boolean; trustCertificate: boolean }
 export interface ColumnKey { name: string; primaryKey: boolean; foreignKey: boolean }
-export interface ResultSet { columnKeys?: ColumnKey[]; keyMetadataError?: string; columns: string[]; rows: (string | null)[][]; affected: number | null; totalRows?: number | null; hasMore?: boolean; pageSize?: number | null }
+export interface ResultSet { joinEditable?: boolean; editReason?: string | null; columnKeys?: ColumnKey[]; keyMetadataError?: string; columns: string[]; rows: (string | null)[][]; affected: number | null; totalRows?: number | null; hasMore?: boolean; pageSize?: number | null }
 export interface TableBrowser { table: string; filters: (import("./resultFilters").ColumnFilter & { column: string })[]; sort: { column: string; descending: boolean } | null; sql: string; parameters: string[] }
 export interface ValueChoices { values: { value: string | null; count: number }[]; hasMore: boolean }
 export interface QueryResult { browser?: TableBrowser | null; sets: ResultSet[]; truncated: boolean; elapsedMs: number; cacheId?: string | null; complete?: boolean; pageSize?: number | null; cancelled?: boolean }

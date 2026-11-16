@@ -12,6 +12,7 @@ mod result_cache;
 mod result_session;
 mod table_browser;
 mod table_edit;
+mod join_edit;
 use database::{Connection, QueryResult};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -29,6 +30,8 @@ struct Runtime {
 }
 
 struct StoredResult {
+    join: Option<join_edit::JoinEdit>,
+    join_error: Option<String>,
     session: result_session::Session,
     connection: Connection,
     password: String,
@@ -36,6 +39,14 @@ struct StoredResult {
     base_count_sql: Option<String>,
     browser: Option<table_browser::Browser>,
     parameters: Option<Vec<String>>,
+}
+impl StoredResult {
+    fn decorate(&self, result: &mut QueryResult) {
+        if let Some(set) = result.sets.first_mut() {
+            if let Some(join) = &self.join { join.decorate(set); }
+            else if self.browser.is_none() { set.edit_reason = Some(self.join_error.clone().unwrap_or_else(|| "Editing supports plain tables or SELECT * with INNER JOINs across multiple tables. All source tables need primary keys; expressions, outer joins and self-joins are read-only.".into())); }
+        }
+    }
 }
 impl std::ops::Deref for StoredResult {
     type Target = result_session::Session;
@@ -131,10 +142,18 @@ async fn query(
             let count_connection = connection.clone();
             let count_password = password.clone();
             let count_sql = count_query::table_count(&sql, &connection.engine);
+            let (join, join_error) = if count_sql.is_none() {
+                match tokio::time::timeout(std::time::Duration::from_secs(10), join_edit::prepare(&connection, &password, &sql)).await {
+                    Ok(Ok(join)) => (join,None),
+                    Ok(Err(error)) => (None,Some(error)),
+                    Err(_) => (None,Some("JOIN editing metadata timed out. Results are read-only.".into())),
+                }
+            } else { (None,None) };
             let session = Arc::new(StoredResult {
+                join, join_error,
                 connection: count_connection,
                 password: count_password,
-                base_count_sql: count_sql.clone(),
+                base_count_sql: count_query::table_query(&sql, &connection.engine).map(|q| q.base_count),
                 browser: table_browser::initial(&sql, &connection.engine),
                 parameters: None,
                 count_sql,
@@ -143,6 +162,7 @@ async fn query(
                 })?,
             });
             let mut result = session.first_page(size).await?.result;
+            session.decorate(&mut result);
             result.browser = session.browser.clone();
             result.cache_id = Some(request_id.clone());
             result.elapsed_ms = start.elapsed().as_millis();
@@ -194,15 +214,32 @@ async fn result_page(
         session.clone()
     };
     let mut page = session.page(set_index, offset, page_size).await?;
+    session.decorate(&mut page.result);
     page.result.browser = session.browser.clone();
     page.result.cache_id = Some(cache_id);
     Ok(page)
 }
 
 #[tauri::command]
+async fn refresh_join_results(state: State<'_, Runtime>, cache_id: String, request_id: String, page_size: Option<usize>) -> Result<QueryResult,String> {
+    let old=stored_result(&state,&cache_id)?;
+    let sql=old.join.as_ref().ok_or("Only supported JOIN results can be refreshed here.")?.sql.clone();
+    // Rerun the exact SELECT and connection that produced this snapshot, not the editor's current text.
+    let result=query(state.clone(),request_id,old.connection.clone(),Some(old.password.clone()),sql,Some(true),page_size).await?;
+    if let Some((_,previous))=state.results.lock().map_err(|e|e.to_string())?.remove(&cache_id) {previous.cancel();}
+    state.edited_results.lock().map_err(|e|e.to_string())?.remove(&cache_id);
+    Ok(result)
+}
+
+#[tauri::command]
 async fn edit_capabilities(state: State<'_, Runtime>, cache_id: String) -> Result<table_edit::Capabilities, String> {
     if state.edited_results.lock().map_err(|e| e.to_string())?.contains(&cache_id) { return Err("Reload results before editing again.".into()); }
     let stored = stored_result(&state, &cache_id)?;
+    if let Some(join) = &stored.join {
+        let page=stored.page(0,0,1).await?;
+        join.validate(&page.result.sets.first().ok_or("Missing result set")?.columns)?;
+        return Ok(join.capabilities());
+    }
     let base = stored.base_count_sql.as_deref().filter(|_| stored.browser.is_some()).ok_or("Only plain table results can be edited.")?;
     let (_, capabilities) = table_edit::metadata(&stored.connection, &stored.password, base).await?;
     Ok(capabilities)
@@ -212,8 +249,7 @@ async fn edit_rows(state: State<'_, Runtime>, cache_id: String, changes: Vec<tab
     let inserts = inserts.unwrap_or_default(); let deletes = deletes.unwrap_or_default();
     if changes.len() + inserts.len() + deletes.len() > 100 { return Err("At most 100 changes per submission.".into()); }
     let stored = stored_result(&state, &cache_id)?;
-    let base = stored.base_count_sql.as_deref().filter(|_| stored.browser.is_some()).ok_or("Only plain table results can be edited.")?;
-    let (keys, capabilities) = table_edit::metadata(&stored.connection, &stored.password, base).await?;
+    if stored.join.is_some() && (!inserts.is_empty() || !deletes.is_empty()) { return Err("JOIN results support updates only. Open the source table to insert or delete rows.".into()); }
     let mut rows = vec![]; let mut columns = vec![];
     for row_index in changes.iter().map(|c| c.row_index).chain(deletes.iter().copied()) {
         if rows.iter().any(|(index, _)| *index == row_index) { continue; }
@@ -221,8 +257,14 @@ async fn edit_rows(state: State<'_, Runtime>, cache_id: String, changes: Vec<tab
         columns = page.result.sets.first().ok_or("Missing result set")?.columns.clone();
         rows.push((row_index, page.rows.first().ok_or("Row is unavailable")?.clone()));
     }
-    let table = base.split_once(" FROM ").ok_or("Unknown table")?.1;
-    let statements = table_edit::plan_operations(table, &stored.connection.engine, &keys, &capabilities, &columns, &rows, &changes, &inserts, &deletes)?;
+    let statements = if let Some(join) = &stored.join {
+        join.plan(&stored.connection.engine,&columns,&rows,&changes)?
+    } else {
+        let base = stored.base_count_sql.as_deref().filter(|_| stored.browser.is_some()).ok_or("Only plain tables or supported JOIN results can be edited.")?;
+        let (keys, capabilities) = table_edit::metadata(&stored.connection, &stored.password, base).await?;
+        let table = base.split_once(" FROM ").ok_or("Unknown table")?.1;
+        table_edit::plan_operations(table, &stored.connection.engine, &keys, &capabilities, &columns, &rows, &changes, &inserts, &deletes)?
+    };
     if apply {
         // A cached snapshot can only be submitted once, including uncertain connection failures.
         if !state.edited_results.lock().map_err(|e| e.to_string())?.insert(cache_id) { return Err("This snapshot was already submitted. Reload results before editing again.".into()); }
@@ -243,6 +285,7 @@ async fn result_column_keys(
         .get(&cache_id)
         .map(|(_, stored)| stored.clone())
         .ok_or("Results have expired.")?;
+    if let Some(join)=&stored.join { return Ok(join.column_keys()); }
     let sql = stored
         .base_count_sql
         .as_ref()
@@ -356,6 +399,7 @@ async fn browse_table(
         let sql = plan.browser.sql.clone();
         let params = plan.browser.parameters.clone();
         let stored = Arc::new(StoredResult {
+            join: None, join_error: None,
             connection: old.connection.clone(),
             password: old.password.clone(),
             count_sql: Some(plan.count),
@@ -554,6 +598,7 @@ async fn open_reference(
         let statement = plan.browser.sql.clone();
         let params = plan.browser.parameters.clone();
         let stored = Arc::new(StoredResult {
+            join: None, join_error: None,
             connection: source.connection.clone(),
             password: source.password.clone(),
             base_count_sql: Some(base_count),
@@ -660,6 +705,7 @@ fn main() {
             result_column_keys,
             edit_capabilities,
             edit_rows,
+            refresh_join_results,
             result_references,
             open_reference,
             browse_table,

@@ -15,8 +15,15 @@ export const toCsv = (columns: string[], rows: (string | null)[][]): string => [
 
 // Find statement boundaries without splitting quoted strings, comments, or PG dollar bodies.
 export function statementAt(sql: string, cursor: number, engine: Engine = 'postgres'): string {
+  const range = statementRangeAt(sql, cursor, engine);
+  return sql.slice(range.from, range.to);
+}
+
+export function statementRangeAt(sql: string, cursor: number, engine: Engine = 'postgres'): { from: number; to: number } {
   const ends: number[] = [];
   let quote = '', dollar = '', blockDepth = 0, line = false, escaped = false;
+  let depth = 0, firstWord = '', hasSelect = false, setOperation = false;
+  const inferred = new Set<number>();
   for (let i = 0; i < sql.length; i++) {
     const ch = sql[i], next = sql[i + 1];
     if (line) { if (ch === '\n') line = false; continue; }
@@ -27,9 +34,29 @@ export function statementAt(sql: string, cursor: number, engine: Engine = 'postg
     else if (ch === '/' && next === '*') { blockDepth = 1; i++; }
     else if (ch === "'" || ch === '"' || (ch === '[' && engine === 'sqlserver')) { quote = ch === '[' ? ']' : ch; escaped = engine === 'postgres' && ch === "'" && /(?:^|[^\w])e$/i.test(sql.slice(0, i)); }
     else if (ch === '$' && engine === 'postgres') { const match = sql.slice(i).match(/^\$(?:[A-Za-z_][\w]*)?\$/); if (match) { dollar = match[0]; i += dollar.length - 1; } }
-    else if (ch === ';') ends.push(i + 1);
+    else if (ch === '(') depth++;
+    else if (ch === ')') depth = Math.max(0, depth - 1);
+    else if (ch === ';') {
+      ends.push(i + 1);
+      if (depth === 0) { firstWord = ''; hasSelect = false; setOperation = false; }
+    }
+    else if (depth === 0 && /[a-z_]/i.test(ch)) {
+      const word = sql.slice(i).match(/^[a-z_][a-z0-9_$]*/i)![0];
+      const upper = word.toUpperCase();
+      const lineStart = sql.lastIndexOf('\n', i - 1) + 1;
+      if (upper === 'SELECT' && hasSelect && /^(SELECT|WITH)$/.test(firstWord) && !setOperation && /^[\t \r]*$/.test(sql.slice(lineStart, i))) {
+        ends.push(i); inferred.add(i);
+        firstWord = ''; hasSelect = false;
+      }
+      if (!firstWord) firstWord = upper;
+      if (/^(UNION|INTERSECT|EXCEPT)$/.test(upper)) setOperation = true;
+      if (upper === 'SELECT') { hasSelect = true; setOperation = false; }
+      i += word.length - 1;
+    }
   }
-  const start = [...ends].reverse().find(end => end < cursor) ?? 0;
+  const start = [...ends].reverse().find(end => end < cursor || inferred.has(end) && end === cursor) ?? 0;
   const end = ends.find(end => end >= cursor && end > start) ?? sql.length;
-  return sql.slice(start, end).trim();
+  const text = sql.slice(start, end);
+  const from = start + text.length - text.trimStart().length;
+  return { from, to: Math.max(from, end - (text.length - text.trimEnd().length)) };
 }
