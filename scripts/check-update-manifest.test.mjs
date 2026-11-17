@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateManifest } from './check-update-manifest.mjs';
-const repo = 'Ceusters-be/DataGoblin';
+const repo = 'GoblinAssembly/DataGoblin';
 const platforms = ['windows-x86_64', 'darwin-aarch64', 'darwin-x86_64', 'linux-x86_64'];
 function fixture(api = true) {
   const assets = platforms.map((name, i) => ({ name, url: `https://api.github.com/repos/${repo}/releases/assets/${i + 1}` }));

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
 export function validateManifest(manifest, tag, release) {
-const repository = 'Ceusters-be/DataGoblin';
+const repository = 'GoblinAssembly/DataGoblin';
 if (release) assert.equal(release.tag_name, tag, 'Release tag mismatch');
 const prefix = `https://github.com/${repository}/releases/download/${encodeURIComponent(tag)}/`;
 const apiPrefix = `https://api.github.com/repos/${repository}/releases/assets/`;

@@ -9,11 +9,11 @@
 A focused desktop SQL workspace for **PostgreSQL** and **Microsoft SQL Server**.<br />
 Built for developers who want to get from a query to an answer—and back to work.
 
-[![Latest release](https://img.shields.io/github/v/release/Ceusters-be/DataGoblin?style=flat-square&color=0647F7&label=latest%20release)](https://github.com/Ceusters-be/DataGoblin/releases/latest)
-[![Desktop builds](https://github.com/Ceusters-be/DataGoblin/actions/workflows/build.yml/badge.svg)](https://github.com/Ceusters-be/DataGoblin/actions/workflows/build.yml)
+[![Latest release](https://img.shields.io/github/v/release/GoblinAssembly/DataGoblin?style=flat-square&color=0647F7&label=latest%20release)](https://github.com/GoblinAssembly/DataGoblin/releases/latest)
+[![Desktop builds](https://github.com/GoblinAssembly/DataGoblin/actions/workflows/build.yml/badge.svg)](https://github.com/GoblinAssembly/DataGoblin/actions/workflows/build.yml)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-272C35?style=flat-square)](#install)
 
-**[Download DataGoblin](https://github.com/Ceusters-be/DataGoblin/releases/latest)** · **[Features](#features)** · **[Quick start](#your-first-query)** · **[Development](#development)**
+**[Download DataGoblin](https://github.com/GoblinAssembly/DataGoblin/releases/latest)** · **[Features](#features)** · **[Quick start](#your-first-query)** · **[Development](#development)**
 
 </div>
 
@@ -29,7 +29,7 @@ Around that sits a SQL editor, a selective database explorer, a query library an
 
 ## Install
 
-Open the **[latest release](https://github.com/Ceusters-be/DataGoblin/releases/latest)** and expand **Assets**. The release badge above always shows the latest published version.
+Open the **[latest release](https://github.com/GoblinAssembly/DataGoblin/releases/latest)** and expand **Assets**. The release badge above always shows the latest published version.
 
 | Your computer | Download | Installation |
 | :--- | :--- | :--- |
@@ -164,7 +164,7 @@ The desktop shell is **Tauri 2**, with a **Rust** backend and a **Nuxt 4 / Vue 3
 Install Node.js 22.12+ or a compatible newer LTS, Rust stable, and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS.
 
 ```bash
-git clone https://github.com/Ceusters-be/DataGoblin.git
+git clone https://github.com/GoblinAssembly/DataGoblin.git
 cd DataGoblin
 npm ci
 npm run desktop
@@ -199,7 +199,7 @@ Installers from a local build are written to `src-tauri/target/release/bundle/`.
 
 - **[Workspace guide](docs/workspace-guide.md)** — editing rules, storage, browsing, shortcuts and implementation details.
 - **[Release guide](docs/releases.md)** — version tags, installers, update signing and GitHub Actions.
-- **[Report an issue](https://github.com/Ceusters-be/DataGoblin/issues)** — include your app version, operating system and steps to reproduce. Remove credentials and private data from SQL or screenshots.
+- **[Report an issue](https://github.com/GoblinAssembly/DataGoblin/issues)** — include your app version, operating system and steps to reproduce. Remove credentials and private data from SQL or screenshots.
 
 ---
 
@@ -207,6 +207,6 @@ Installers from a local build are written to `src-tauri/target/release/bundle/`.
 
 **DataGoblin** · PostgreSQL + SQL Server · Windows + macOS + Linux
 
-[Get the latest release →](https://github.com/Ceusters-be/DataGoblin/releases/latest)
+[Get the latest release →](https://github.com/GoblinAssembly/DataGoblin/releases/latest)
 
 </div>

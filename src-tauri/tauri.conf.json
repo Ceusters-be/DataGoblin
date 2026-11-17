@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "DataGoblin",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "identifier": "dev.datagoblin.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -39,7 +39,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgzN0NFNjE0MTI4MkY0QUUKUldTdTlJSVNGT1o4ZyswOUpkVWFuR0wzaGlWT25GZnI0S01OWmU1SnhFNUt6WTVZVDdVdEY0MHUK",
       "endpoints": [
-        "https://github.com/Ceusters-be/DataGoblin/releases/latest/download/latest.json"
+        "https://github.com/GoblinAssembly/DataGoblin/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "passive"
