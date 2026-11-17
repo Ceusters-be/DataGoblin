@@ -1,13 +1,13 @@
 # DataGoblin — Goblin Stack (A)
 
-Selected identity: a cobalt-blue database cap with integrated goblin ears, above two charcoal database layers. Transparent background, flat shapes, and open gaps keep the mark readable at small sizes.
+Selected identity: a green database cap with integrated goblin ears, above two slate database layers without outlines. Transparent background, flat shapes, and open gaps keep the mark readable at small sizes.
 
 - `../../public/goblin.svg`: app header and browser favicon.
 - `app-icon.svg`: canonical desktop icon source.
 - `../../icon.svg`: matching root icon.
 - `../../src-tauri/icons/`: generated platform icons.
 
-Colors: cobalt `#0647F7`, charcoal `#272C35`.
+Colors: green `#22C55E`, shared slate base `#64748B`. GitGoblin uses blue horns with the same slate base.
 
 Regenerate platform icons from the project root:
 
