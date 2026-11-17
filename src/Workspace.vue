@@ -6,6 +6,7 @@ import { type MenuPosition } from './ContextMenu';
 import { SqlTarget } from './editorNavigation';
 import { type OutputEvent } from './QueryOutput';
 import WindowControls from './WindowControls.vue';
+import { version as appVersion } from '../package.json';
 import AppUpdater from './AppUpdater.vue';
 import { hasCustomTitlebar } from './WindowControls';
 import { shallowRef, computed, watchSyncEffect } from 'vue';
@@ -1721,6 +1722,7 @@ const document = globalThis.document;
       >
         <img src="/goblin.svg" alt="" />
         <strong>DataGoblin</strong>
+        <span class="app-version" :title="`DataGoblin version ${appVersion}`">v{{ appVersion }}</span>
         <span class="alpha">EARLY ACCESS</span>
       </div>
       <WorkspaceControls
