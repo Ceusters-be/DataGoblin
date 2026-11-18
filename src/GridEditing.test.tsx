@@ -130,11 +130,11 @@ it('reverts SQL NULL without sending an update', async () => {
     key: 'Delete',
     ctrlKey: true
   });
-  expect(screen.getByText('NULL')).toBeTruthy();
+  await screen.findByText('NULL');
   await fireEvent.click(screen.getByRole('button', {
     name: 'Revert changes'
   }));
-  expect(screen.getByText('value')).toBeTruthy();
+  await screen.findByText('value');
   expect(invoke.mock.calls.every(([command]) => command !== 'edit_rows')).toBe(true);
 });
 it('preserves drafts when switching tabs and keeps failed submissions from being repeated', async () => {
